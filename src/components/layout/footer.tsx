@@ -79,7 +79,7 @@ export const Footer = () => {
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#6E9CCE]/10 text-[#6E9CCE]"><Phone className="h-4 w-4" /></div>
                 <div>
                   <p className="text-xs font-medium text-black">Phone</p>
-                  <a href={`tel:${siteConfig.phone}`} className="mt-1 block text-xs text-black/45 transition-colors hover:text-[#6E9CCE]">+92 300 1234567</a>
+                  <a href={`tel:${siteConfig.phone}`} className="mt-1 block text-xs text-black/45 transition-colors hover:text-[#6E9CCE]">+92 334 8222296</a>
                 </div>
               </div>
 

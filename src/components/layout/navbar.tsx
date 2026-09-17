@@ -70,7 +70,7 @@ export const Navbar = () => {
           isScrolled ? "shadow-sm" : ""
         }`}
       >
-        <div className="mx-auto flex h-full max-w-360s-center justify-between px-4 sm:px-6 lg:px-10 xl:px-12">
+        <div className="mx-auto flex h-full max-w-360 items-center justify-between px-4 sm:px-6 lg:px-10 xl:px-12">
           {/* LOGO */}
           <Link
             href="/"
