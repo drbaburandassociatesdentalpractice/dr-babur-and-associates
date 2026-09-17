@@ -70,17 +70,17 @@ export const Navbar = () => {
           isScrolled ? "shadow-sm" : ""
         }`}
       >
-        <div className="mx-auto flex h-full max-w-[1440px] items-center justify-between px-4 sm:px-6 lg:px-10 xl:px-12">
+        <div className="mx-auto flex h-full max-w-360s-center justify-between px-4 sm:px-6 lg:px-10 xl:px-12">
           {/* LOGO */}
           <Link
             href="/"
             aria-label="Dr. Babur & Associates Dental Practice — Home"
             onClick={() => setOpen(false)}
-            className="group flex h-14 w-[200px] shrink-0 items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[#6E9CCE] focus-visible:ring-offset-2"
+            className="group flex h-14 w-50 shrink-0 items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[#6E9CCE] focus-visible:ring-offset-2"
           >
-            <div className="relative h-12 w-[180px] sm:h-14 sm:w-[200px]">
+            <div className="relative h-12 w-45 sm:h-14 sm:w-50">
               <Image
-                src="/Assets/vector/Dr Babur & Associates Dental Practice.svg"
+                src="/assets/vector/Dr Babur & Associates Dental Practice.svg"
                 alt=""
                 fill
                 priority
@@ -160,7 +160,7 @@ export const Navbar = () => {
                       aria-label="Dr. Babur & Associates — Home"
                       className="inline-flex rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[#173782] focus-visible:ring-offset-2"
                     >
-                      <div className="relative h-12 w-[180px]">
+                      <div className="relative h-12 w-45">
                         <Image
                           src="/Assets/vector/Dr Babur & Associates Dental Practice.svg"
                           alt=""

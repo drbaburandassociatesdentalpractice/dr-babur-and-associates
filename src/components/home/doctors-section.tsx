@@ -53,7 +53,7 @@ export const DoctorsSection = () => {
       <div className="pointer-events-none absolute -right-40 top-20 h-96 w-96 rounded-full bg-[#6E9CCE]/10 blur-3xl" />
       <div className="pointer-events-none absolute -left-40 bottom-20 h-96 w-96 rounded-full bg-[#6E9CCE]/5 blur-3xl" />
 
-      <div className="relative mx-auto max-w-[1500px] px-5 sm:px-8 lg:px-12">
+      <div className="relative mx-auto max-w-375 px-5 sm:px-8 lg:px-12">
         {/* Section Header */}
         <div className="grid gap-10 lg:grid-cols-[1fr_420px] lg:items-end">
           <motion.div
@@ -126,10 +126,10 @@ export const DoctorsSection = () => {
                     alt={doctor.name}
                     fill
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 20vw"
-                    className="object-cover object-center grayscale-[15%] transition-all duration-700 ease-out group-hover:scale-[1.04] group-hover:grayscale-0"
+                    className="object-cover object-center grayscale-15 transition-all duration-700 ease-out group-hover:scale-[1.04] group-hover:grayscale-0"
                   />
 
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/5 opacity-60 transition-opacity duration-500 group-hover:opacity-80" />
+                  <div className="absolute inset-0 bg-linear-to-t from-black/70 via-transparent to-black/5 opacity-60 transition-opacity duration-500 group-hover:opacity-80" />
 
                   <div className="absolute left-5 top-5">
                     <span className="text-[10px] font-medium tracking-[0.2em] text-white/70">

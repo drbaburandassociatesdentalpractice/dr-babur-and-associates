@@ -15,7 +15,7 @@ export const AboutSection = () => {
 
       {/* ───────────────── CONTAINER ───────────────── */}
 
-      <div className="relative mx-auto max-w-[1500px] px-5 sm:px-8 lg:px-12">
+      <div className="relative mx-auto max-w-375 px-5 sm:px-8 lg:px-12">
 
         {/* ───────────────── TOP ───────────────── */}
 
@@ -70,7 +70,7 @@ export const AboutSection = () => {
             transition={{ duration: 0.8 }}
             className="relative"
           >
-            <div className="relative aspect-[16/10] overflow-hidden bg-gray-200 sm:aspect-[16/9]">
+            <div className="relative aspect-16/10 overflow-hidden bg-gray-200 sm:aspect-video">
               <Image
                 src="/assets/images/about-dental.jpg"
                 alt="Dr. Babur & Associates Dental Practice"
@@ -80,7 +80,7 @@ export const AboutSection = () => {
               />
 
               {/* Image overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+              <div className="absolute inset-0 bg-linear-to-t from-black/40 via-transparent to-transparent" />
 
               {/* Experience badge */}
               <div className="absolute bottom-5 left-5 sm:bottom-7 sm:left-7">
