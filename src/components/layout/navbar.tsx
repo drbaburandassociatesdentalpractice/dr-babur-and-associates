@@ -162,7 +162,7 @@ export const Navbar = () => {
                     >
                       <div className="relative h-12 w-45">
                         <Image
-                          src="/Assets/vector/Dr Babur & Associates Dental Practice.svg"
+                          src="/assets/vector/Dr Babur & Associates Dental Practice.svg"
                           alt=""
                           fill
                           sizes="180px"

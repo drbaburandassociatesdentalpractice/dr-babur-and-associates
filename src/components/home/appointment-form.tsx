@@ -1,35 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { format, isBefore, startOfDay } from "date-fns";
+import {
+  CalendarIcon,
+  CheckCircle2,
+  Clock3,
+  Stethoscope,
+} from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  format,
-  isSunday,
-  isSaturday,
-  isMonday,
-  parseISO,
-  startOfDay,
-} from "date-fns";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import {
-  Calendar,
-  Clock,
-  User,
-  Mail,
-  Phone,
-  MessageSquare,
-  CheckCircle,
-  AlertCircle,
-  ArrowUpRight,
-} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-
 import {
   Select,
   SelectContent,
@@ -37,41 +24,46 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
-
-import {
-  AppointmentFormData,
-  appointmentSchema,
-} from "@/lib/validations/appointment-schema";
 
 import {
   dentists,
   services,
+  dentistServices,
+  unavailableWeekdays,
+  timeSlots,
 } from "@/lib/constants/appointment-data";
 
-export const AppointmentForm = () => {
-  const [selectedTime, setSelectedTime] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
-  const [formData, setFormData] =
-    useState<AppointmentFormData | null>(null);
+import {
+  appointmentSchema,
+  type AppointmentFormData,
+} from "@/lib/validations/appointment-schema";
 
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    formState: { errors },
-    reset,
-    trigger,
-  } = useForm<AppointmentFormData>({
+type SubmittedAppointment = {
+  dentist: string;
+  service: string;
+  date: string;
+  time: string;
+};
+
+export function AppointmentForm() {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [submittedAppointment, setSubmittedAppointment] =
+    useState<SubmittedAppointment | null>(null);
+
+  const form = useForm<AppointmentFormData>({
     resolver: zodResolver(appointmentSchema),
     defaultValues: {
       name: "",
@@ -79,94 +71,106 @@ export const AppointmentForm = () => {
       phone: "",
       dentist: "",
       service: "",
-      message: "",
       date: "",
       time: "",
+      message: "",
       terms: false,
     },
   });
 
-  const watchDate = watch("date");
+  const selectedDentist = form.watch("dentist");
+  const selectedService = form.watch("service");
+  const selectedDate = form.watch("date");
+  const selectedTime = form.watch("time");
 
-  const today = startOfDay(new Date());
+  const errors = form.formState.errors;
 
-  const getAvailableDates = () => {
-    const dates = [];
+  const availableServices = useMemo(() => {
+    if (!selectedDentist) return [];
 
-    for (let i = 0; i < 30; i++) {
-      const date = new Date(today);
-      date.setDate(date.getDate() + i);
-
-      if (!isSunday(date)) {
-        dates.push(date);
-      }
-    }
-
-    return dates;
-  };
-
-  const availableDates = getAvailableDates();
-
-  const getDayType = (date: string) => {
-    if (!date) return null;
-
-    const selected = parseISO(date);
-
-    if (isSaturday(selected)) return "saturday";
-    if (isMonday(selected)) return "monday";
-
-    return "weekday";
-  };
-
-  const getTimeSlots = (date: string) => {
-    if (!date) return [];
-
-    const dayType = getDayType(date);
-
-    if (
-      dayType === "saturday" ||
-      dayType === "monday"
-    ) {
-      return [
-        "4:00 PM",
-        "4:30 PM",
-        "5:00 PM",
-        "5:30 PM",
-        "6:00 PM",
-        "6:30 PM",
-        "7:00 PM",
+    const allowedServices =
+      dentistServices[
+        selectedDentist as keyof typeof dentistServices
       ];
+
+    if (!allowedServices) return [];
+
+    return services.filter((service) =>
+      allowedServices.some(
+        (allowedService) => allowedService === service.value,
+      ),
+    );
+  }, [selectedDentist]);
+
+  useEffect(() => {
+    if (!selectedDentist) return;
+
+    form.setValue("service", "");
+    form.setValue("date", "");
+    form.setValue("time", "");
+  }, [selectedDentist, form]);
+
+  const isDateUnavailable = (date: Date) => {
+    if (!selectedDentist) return true;
+
+    if (isBefore(startOfDay(date), startOfDay(new Date()))) {
+      return true;
     }
 
-    return [
-      "9:00 AM",
-      "9:30 AM",
-      "10:00 AM",
-      "10:30 AM",
-      "11:00 AM",
-      "11:30 AM",
-      "12:00 PM",
-      "12:30 PM",
-      "1:00 PM",
-      "1:30 PM",
-      "2:00 PM",
-      "2:30 PM",
-      "3:00 PM",
-      "3:30 PM",
-      "4:00 PM",
-      "4:30 PM",
-      "5:00 PM",
-      "5:30 PM",
-      "6:00 PM",
-      "6:30 PM",
-      "7:00 PM",
-      "7:30 PM",
-      "8:00 PM",
-      "8:30 PM",
-    ];
+    const unavailableDays =
+      unavailableWeekdays[
+        selectedDentist as keyof typeof unavailableWeekdays
+      ];
+
+    if (!unavailableDays) return false;
+
+    return unavailableDays.some((day) => day === date.getDay());
   };
 
-  const onSubmit = async (data: AppointmentFormData) => {
+  const handleDentistChange = (value: string) => {
+    form.setValue("dentist", value, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+
+    form.setValue("service", "", {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+
+    form.setValue("date", "", {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+
+    form.setValue("time", "", {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+  };
+
+  const handleServiceChange = (value: string) => {
+    form.setValue("service", value, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+  };
+
+  const handleDateChange = (date: Date | undefined) => {
+    if (!date || isDateUnavailable(date)) return;
+
+    form.setValue("date", format(date, "yyyy-MM-dd"), {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+
+    form.setValue("time", "", {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+  };
+
+  const onSubmit = async (values: AppointmentFormData) => {
     setIsSubmitting(true);
 
     try {
@@ -176,765 +180,625 @@ export const AppointmentForm = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: data.name,
-          email: data.email,
-          phone: data.phone,
-          dentist: data.dentist,
-          service: data.service,
-          message: data.message || "",
-          date: data.date,
-          time: data.time,
+          name: values.name.trim(),
+          email: values.email.trim(),
+          phone: values.phone.trim(),
+          dentist: values.dentist,
+          service: values.service,
+          date: values.date,
+          time: values.time,
+          message: values.message?.trim() || "",
         }),
       });
 
       const result = await response.json();
 
-      if (result.success) {
-        setFormData(data);
-        setShowSuccessDialog(true);
-
-        reset();
-        setSelectedTime("");
-
-        toast.success(
-          "Appointment request submitted successfully!"
-        );
-      } else {
-        toast.error(
-          "Failed to send appointment request. Please try again."
+      if (!response.ok) {
+        throw new Error(
+          result?.error ||
+            "Unable to send your appointment request.",
         );
       }
-    } catch {
+
+      setSubmittedAppointment({
+        dentist: values.dentist,
+        service: values.service,
+        date: values.date,
+        time: values.time,
+      });
+
+      form.reset();
+      setShowSuccess(true);
+
+      toast.success("Appointment request sent successfully.");
+    } catch (error) {
+      console.error("Appointment submission error:", error);
+
       toast.error(
-        "Something went wrong. Please try again."
+        error instanceof Error
+          ? error.message
+          : "Something went wrong. Please try again.",
       );
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleCloseDialog = () => {
-    setShowSuccessDialog(false);
-    setFormData(null);
-  };
+  const selectedDateValue = selectedDate
+    ? new Date(`${selectedDate}T00:00:00`)
+    : undefined;
 
-  const inputClass = (hasError?: boolean) =>
-    `
-      h-12
-      w-full
-      rounded-xl
-      border
-      bg-white
-      pl-11
-      pr-4
-      text-sm
-      text-black
-      outline-none
-      transition
-      duration-200
-      placeholder:text-black/30
-      focus:border-[#6E9CCE]
-      focus:ring-2
-      focus:ring-[#6E9CCE]/15
-      ${
-        hasError
-          ? "border-red-400 focus:border-red-400 focus:ring-red-400/10"
-          : "border-black/10"
-      }
-    `;
+  const selectedDentistInfo = dentists.find(
+    (dentist) => dentist.value === submittedAppointment?.dentist,
+  );
 
-  const labelClass =
-    "text-[11px] font-medium text-black/60";
+  const selectedServiceInfo = services.find(
+    (service) => service.value === submittedAppointment?.service,
+  );
 
-  const selectClass = (hasError?: boolean) =>
-    `
-      mt-1.5
-      h-12
-      rounded-xl
-      border
-      bg-white
-      px-4
-      text-sm
-      shadow-none
-      focus:ring-2
-      focus:ring-[#6E9CCE]/15
-      ${
-        hasError
-          ? "border-red-400"
-          : "border-black/10 focus:border-[#6E9CCE]"
-      }
-    `;
+  const submittedDateValue = submittedAppointment?.date
+    ? new Date(`${submittedAppointment.date}T00:00:00`)
+    : undefined;
 
   return (
     <>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
         viewport={{ once: true, amount: 0.1 }}
-        className="
-          overflow-hidden
-          rounded-[24px]
-          border
-          border-black/10
-          bg-white
-          shadow-[0_16px_60px_rgba(0,0,0,0.05)]
-        "
+        transition={{ duration: 0.5 }}
+        className="mx-auto w-full max-w-3xl"
       >
-        <div className="h-1 w-full bg-[#6E9CCE]" />
+        <div className="w-full rounded-3xl border border-black/10 bg-white p-5 shadow-[0_20px_70px_rgba(0,0,0,0.06)] sm:p-7 lg:p-8">
 
-        <div className="p-5 sm:p-7 lg:p-8">
+          {/* HEADER */}
 
-        
+          <div className="mb-6">
+            <p className="text-[10px] font-medium uppercase tracking-[0.24em] text-[#6E9CCE]">
+              Appointment request
+            </p>
+
+            <h2 className="mt-1.5 text-2xl font-light tracking-[-0.035em] text-black sm:text-3xl">
+              Book your visit
+            </h2>
+
+            <p className="mt-1.5 text-sm leading-5 text-black/45">
+              Choose your dentist, treatment, preferred date and appointment time.
+            </p>
+          </div>
 
           <form
-            onSubmit={handleSubmit(onSubmit)}
-            className="space-y-5"
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="space-y-6"
+            noValidate
           >
 
-            {/* Name */}
+            {/* PATIENT INFORMATION */}
 
-            <div>
-              <Label
-                htmlFor="name"
-                className={labelClass}
-              >
-                Full Name <span className="text-red-500">*</span>
-              </Label>
+            <section className="space-y-3.5">
+              <div>
+                <h3 className="text-sm font-medium text-black">
+                  Patient information
+                </h3>
 
-              <div className="relative mt-1.5">
-                <User className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-black/25" />
-
-                <Input
-                  id="name"
-                  placeholder="Enter your full name"
-                  className={inputClass(!!errors.name)}
-                  {...register("name")}
-                />
+                <p className="mt-0.5 text-xs text-black/40">
+                  Tell us how we can contact you.
+                </p>
               </div>
 
-              {errors.name && (
-                <ErrorMessage>
-                  {errors.name.message}
-                </ErrorMessage>
-              )}
-            </div>
+              <div className="grid w-full gap-3.5 sm:grid-cols-2">
 
-            {/* Email + Phone */}
+                {/* NAME */}
 
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-
-              <div>
-                <Label
-                  htmlFor="email"
-                  className={labelClass}
-                >
-                  Email Address{" "}
-                  <span className="text-red-500">*</span>
-                </Label>
-
-                <div className="relative mt-1.5">
-                  <Mail className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-black/25" />
+                <div className="w-full space-y-1.5">
+                  <label
+                    htmlFor="name"
+                    className="text-xs font-medium text-black/60"
+                  >
+                    Full name
+                  </label>
 
                   <Input
-                    id="email"
-                    type="email"
-                    placeholder="you@example.com"
-                    className={inputClass(!!errors.email)}
-                    {...register("email")}
+                    id="name"
+                    {...form.register("name")}
+                    placeholder="Your full name"
+                    autoComplete="name"
+                    disabled={isSubmitting}
+                    aria-invalid={!!errors.name}
+                    className="h-11 w-full rounded-xl border-black/10 shadow-none focus-visible:border-[#6E9CCE] focus-visible:ring-[#6E9CCE]/20"
                   />
+
+                  {errors.name?.message && (
+                    <p className="text-xs text-red-600">
+                      {errors.name.message}
+                    </p>
+                  )}
                 </div>
 
-                {errors.email && (
-                  <ErrorMessage>
-                    {errors.email.message}
-                  </ErrorMessage>
-                )}
-              </div>
+                {/* PHONE */}
 
-              <div>
-                <Label
-                  htmlFor="phone"
-                  className={labelClass}
-                >
-                  Phone Number{" "}
-                  <span className="text-red-500">*</span>
-                </Label>
-
-                <div className="relative mt-1.5">
-                  <Phone className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-black/25" />
+                <div className="w-full space-y-1.5">
+                  <label
+                    htmlFor="phone"
+                    className="text-xs font-medium text-black/60"
+                  >
+                    Phone number
+                  </label>
 
                   <Input
                     id="phone"
+                    {...form.register("phone")}
                     type="tel"
                     placeholder="+92 300 1234567"
-                    className={inputClass(!!errors.phone)}
-                    {...register("phone")}
+                    autoComplete="tel"
+                    disabled={isSubmitting}
+                    aria-invalid={!!errors.phone}
+                    className="h-11 w-full rounded-xl border-black/10 shadow-none focus-visible:border-[#6E9CCE] focus-visible:ring-[#6E9CCE]/20"
                   />
+
+                  {errors.phone?.message && (
+                    <p className="text-xs text-red-600">
+                      {errors.phone.message}
+                    </p>
+                  )}
                 </div>
-
-                {errors.phone && (
-                  <ErrorMessage>
-                    {errors.phone.message}
-                  </ErrorMessage>
-                )}
               </div>
 
-            </div>
+              {/* EMAIL */}
 
-            {/* Dentist + Service */}
-
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-
-              <div>
-                <Label className={labelClass}>
-                  Select Dentist{" "}
-                  <span className="text-red-500">*</span>
-                </Label>
-
-                <Select
-                  onValueChange={(value) => {
-                    setValue("dentist", value);
-                    trigger("dentist");
-                  }}
+              <div className="w-full space-y-1.5">
+                <label
+                  htmlFor="email"
+                  className="text-xs font-medium text-black/60"
                 >
-                  <SelectTrigger
-                    className={selectClass(!!errors.dentist)}
-                  >
-                    <SelectValue placeholder="Select a dentist" />
-                  </SelectTrigger>
+                  Email address
+                </label>
 
-                  <SelectContent className="rounded-xl">
-                    {dentists.map((dentist) => (
-                      <SelectItem
-                        key={dentist.value}
-                        value={dentist.value}
-                      >
-                        {dentist.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input
+                  id="email"
+                  {...form.register("email")}
+                  type="email"
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                  disabled={isSubmitting}
+                  aria-invalid={!!errors.email}
+                  className="h-11 w-full rounded-xl border-black/10 shadow-none focus-visible:border-[#6E9CCE] focus-visible:ring-[#6E9CCE]/20"
+                />
 
-                {errors.dentist && (
-                  <ErrorMessage>
-                    {errors.dentist.message}
-                  </ErrorMessage>
+                {errors.email?.message && (
+                  <p className="text-xs text-red-600">
+                    {errors.email.message}
+                  </p>
                 )}
               </div>
+            </section>
 
+            {/* APPOINTMENT DETAILS */}
+
+            <section className="space-y-3.5">
               <div>
-                <Label className={labelClass}>
-                  Select Service{" "}
-                  <span className="text-red-500">*</span>
-                </Label>
+                <h3 className="text-sm font-medium text-black">
+                  Appointment details
+                </h3>
 
-                <Select
-                  onValueChange={(value) => {
-                    setValue("service", value);
-                    trigger("service");
-                  }}
-                >
-                  <SelectTrigger
-                    className={selectClass(!!errors.service)}
-                  >
-                    <SelectValue placeholder="Select a service" />
-                  </SelectTrigger>
-
-                  <SelectContent className="rounded-xl">
-                    {services.map((service) => (
-                      <SelectItem
-                        key={service.value}
-                        value={service.value}
-                      >
-                        {service.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                {errors.service && (
-                  <ErrorMessage>
-                    {errors.service.message}
-                  </ErrorMessage>
-                )}
+                <p className="mt-0.5 text-xs text-black/40">
+                  Select a dentist first. Available treatments will automatically update.
+                </p>
               </div>
 
-            </div>
+              <div className="grid w-full gap-3.5 sm:grid-cols-2">
 
-            {/* Date + Time */}
+                {/* DENTIST */}
 
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-
-              <div>
-                <Label
-                  htmlFor="date"
-                  className={labelClass}
-                >
-                  Select Date{" "}
-                  <span className="text-red-500">*</span>
-                </Label>
-
-                <div className="relative mt-1.5">
-                  <Calendar className="pointer-events-none absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-black/25" />
-
-                  <select
-                    id="date"
-                    aria-invalid={!!errors.date}
-                    className={`
-                      h-12
-                      w-full
-                      appearance-none
-                      rounded-xl
-                      border
-                      bg-white
-                      pl-11
-                      pr-4
-                      text-sm
-                      text-black
-                      outline-none
-                      transition
-                      focus:border-[#6E9CCE]
-                      focus:ring-2
-                      focus:ring-[#6E9CCE]/15
-                      ${
-                        errors.date
-                          ? "border-red-400"
-                          : "border-black/10"
-                      }
-                    `}
-                    {...register("date")}
-                    onChange={(e) => {
-                      setValue("date", e.target.value);
-                      setValue("time", "");
-                      setSelectedTime("");
-                      trigger("date");
-                      trigger("time");
-                    }}
+                <div className="min-w-0 w-full space-y-1.5">
+                  <label
+                    htmlFor="dentist"
+                    className="text-xs font-medium text-black/60"
                   >
-                    <option value="">
-                      Select a date
-                    </option>
+                    Dentist
+                  </label>
 
-                    {availableDates.map((date) => {
-                      const dateStr = format(
-                        date,
-                        "yyyy-MM-dd"
-                      );
+                  <Select
+                    value={selectedDentist}
+                    onValueChange={handleDentistChange}
+                    disabled={isSubmitting}
+                  >
+                    <SelectTrigger
+                      id="dentist"
+                      className="h-11 w-full min-w-0 rounded-xl border-black/10 bg-white shadow-none focus:ring-[#6E9CCE]/20"
+                      aria-invalid={!!errors.dentist}
+                    >
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <Stethoscope className="h-4 w-4 shrink-0 text-[#6E9CCE]" />
 
-                      return (
-                        <option
-                          key={dateStr}
-                          value={dateStr}
+                        <SelectValue
+                          placeholder="Select a dentist"
+                          className="truncate"
+                        />
+                      </div>
+                    </SelectTrigger>
+
+                    <SelectContent className="max-w-(--radix-select-trigger-width)">
+                      {dentists.map((dentist) => (
+                        <SelectItem
+                          key={dentist.value}
+                          value={dentist.value}
                         >
-                          {format(
-                            date,
-                            "EEEE, MMMM d, yyyy"
-                          )}
-                        </option>
-                      );
-                    })}
-                  </select>
+                          {dentist.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {errors.dentist?.message && (
+                    <p className="text-xs text-red-600">
+                      {errors.dentist.message}
+                    </p>
+                  )}
                 </div>
 
-                {errors.date && (
-                  <ErrorMessage>
-                    {errors.date.message}
-                  </ErrorMessage>
+                {/* TREATMENT */}
+
+                <div className="min-w-0 w-full space-y-1.5">
+                  <label
+                    htmlFor="service"
+                    className="text-xs font-medium text-black/60"
+                  >
+                    Treatment
+                  </label>
+
+                  <Select
+                    value={selectedService}
+                    onValueChange={handleServiceChange}
+                    disabled={!selectedDentist || isSubmitting}
+                  >
+                    <SelectTrigger
+                      id="service"
+                      className="h-11 w-full min-w-0 rounded-xl border-black/10 bg-white shadow-none focus:ring-[#6E9CCE]/20"
+                      aria-invalid={!!errors.service}
+                    >
+                      <SelectValue
+                        placeholder={
+                          selectedDentist
+                            ? "Select a treatment"
+                            : "Select a dentist first"
+                        }
+                        className="truncate"
+                      />
+                    </SelectTrigger>
+
+                    <SelectContent className="max-w-(--radix-select-trigger-width)">
+                      {availableServices.map((service) => (
+                        <SelectItem
+                          key={service.value}
+                          value={service.value}
+                        >
+                          {service.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {errors.service?.message && (
+                    <p className="text-xs text-red-600">
+                      {errors.service.message}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* DATE + TIME */}
+
+            <section className="grid w-full gap-3.5 md:grid-cols-2">
+
+              {/* DATE */}
+
+              <div className="min-w-0 w-full space-y-1.5">
+                <label className="text-xs font-medium text-black/60">
+                  Appointment date
+                </label>
+
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!selectedDentist || isSubmitting}
+                      className={`h-11 w-full min-w-0 justify-between rounded-xl border-black/10 bg-white px-4 font-normal shadow-none ${
+                        !selectedDate
+                          ? "text-black/35"
+                          : "text-black"
+                      }`}
+                    >
+                      <span className="min-w-0 truncate">
+                        {selectedDateValue
+                          ? format(selectedDateValue, "PPP")
+                          : selectedDentist
+                            ? "Select a date"
+                            : "Select a dentist first"}
+                      </span>
+
+                      <CalendarIcon className="h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+
+                  <PopoverContent
+                    className="w-auto p-0"
+                    align="start"
+                  >
+                    <Calendar
+                      mode="single"
+                      selected={selectedDateValue}
+                      onSelect={handleDateChange}
+                      disabled={isDateUnavailable}
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                {selectedDentist === "dr-babur" && (
+                  <p className="text-[10px] leading-4 text-black/35">
+                    Unavailable Sunday, Wednesday and Saturday.
+                  </p>
                 )}
 
-                {watchDate && (
-                  <p className="mt-1.5 flex items-center gap-1.5 text-[10px] text-black/40">
-                    <Clock className="h-3 w-3" />
+                {selectedDentist === "dr-haroon" && (
+                  <p className="text-[10px] leading-4 text-black/35">
+                    Unavailable Sunday.
+                  </p>
+                )}
 
-                    {isSaturday(parseISO(watchDate)) ||
-                    isMonday(parseISO(watchDate))
-                      ? "Available 4:00 PM – 7:00 PM"
-                      : "Available 9:00 AM – 9:00 PM"}
+                {errors.date?.message && (
+                  <p className="text-xs text-red-600">
+                    {errors.date.message}
                   </p>
                 )}
               </div>
 
-              <div>
-                <Label
-                  htmlFor="time"
-                  className={labelClass}
-                >
-                  Select Time{" "}
-                  <span className="text-red-500">*</span>
-                </Label>
+              {/* TIME */}
 
-                <div className="relative mt-1.5">
-                  <Clock className="pointer-events-none absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-black/25" />
-
-                  <select
-                    id="time"
-                    aria-invalid={!!errors.time}
-                    disabled={!watchDate}
-                    className={`
-                      h-12
-                      w-full
-                      appearance-none
-                      rounded-xl
-                      border
-                      bg-white
-                      pl-11
-                      pr-4
-                      text-sm
-                      text-black
-                      outline-none
-                      transition
-                      focus:border-[#6E9CCE]
-                      focus:ring-2
-                      focus:ring-[#6E9CCE]/15
-                      disabled:cursor-not-allowed
-                      disabled:bg-black/[0.03]
-                      ${
-                        errors.time
-                          ? "border-red-400"
-                          : "border-black/10"
-                      }
-                    `}
-                    value={selectedTime}
-                    onChange={(e) => {
-                      setSelectedTime(e.target.value);
-                      setValue("time", e.target.value);
-                      trigger("time");
-                    }}
+              <div className="min-w-0 w-full space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label
+                    htmlFor="time"
+                    className="text-xs font-medium text-black/60"
                   >
-                    <option value="">
-                      Select a time
-                    </option>
+                    Appointment time
+                  </label>
 
-                    {getTimeSlots(watchDate).map(
-                      (slot) => (
-                        <option
-                          key={slot}
-                          value={slot}
-                        >
-                          {slot}
-                        </option>
-                      )
-                    )}
-                  </select>
+                  <span className="flex shrink-0 items-center gap-1 text-[10px] text-black/35">
+                    <Clock3 className="h-3 w-3" />
+                    4–7 PM
+                  </span>
                 </div>
 
-                {errors.time && (
-                  <ErrorMessage>
+                <Select
+                  value={selectedTime}
+                  onValueChange={(value) =>
+                    form.setValue("time", value, {
+                      shouldValidate: true,
+                      shouldDirty: true,
+                    })
+                  }
+                  disabled={
+                    !selectedDate ||
+                    !selectedDentist ||
+                    isSubmitting
+                  }
+                >
+                  <SelectTrigger
+                    id="time"
+                    className="h-11 w-full min-w-0 rounded-xl border-black/10 bg-white shadow-none focus:ring-[#6E9CCE]/20"
+                    aria-invalid={!!errors.time}
+                  >
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      <Clock3 className="h-4 w-4 shrink-0 text-[#6E9CCE]" />
+
+                      <SelectValue
+                        placeholder={
+                          !selectedDentist
+                            ? "Select a dentist first"
+                            : !selectedDate
+                              ? "Select a date first"
+                              : "Select a preferred time"
+                        }
+                        className="truncate"
+                      />
+                    </div>
+                  </SelectTrigger>
+
+                  <SelectContent className="max-w-(--radix-select-trigger-width)">
+                    {timeSlots.map((time) => (
+                      <SelectItem key={time} value={time}>
+                        {time}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {errors.time?.message && (
+                  <p className="text-xs text-red-600">
                     {errors.time.message}
-                  </ErrorMessage>
+                  </p>
                 )}
               </div>
+            </section>
 
-            </div>
+            {/* MESSAGE */}
 
-            {/* Message */}
-
-            <div>
-              <Label
+            <section className="space-y-1.5">
+              <label
                 htmlFor="message"
-                className={labelClass}
+                className="text-xs font-medium text-black/60"
               >
                 Message{" "}
                 <span className="font-normal text-black/30">
-                  (Optional)
+                  (optional)
                 </span>
-              </Label>
+              </label>
 
-              <div className="relative mt-1.5">
-                <MessageSquare className="pointer-events-none absolute left-4 top-4 h-4 w-4 text-black/25" />
+              <Textarea
+                id="message"
+                {...form.register("message")}
+                placeholder="Tell us anything you'd like the dentist to know..."
+                className="min-h-22.5 w-full resize-none rounded-xl border-black/10 shadow-none focus-visible:border-[#6E9CCE] focus-visible:ring-[#6E9CCE]/20"
+                disabled={isSubmitting}
+                aria-invalid={!!errors.message}
+              />
 
-                <Textarea
-                  id="message"
-                  placeholder="Any specific requirements or symptoms..."
-                  className="
-                    min-h-[100px]
-                    resize-y
-                    rounded-xl
-                    border
-                    border-black/10
-                    bg-white
-                    pl-11
-                    pr-4
-                    pt-3.5
-                    text-sm
-                    shadow-none
-                    placeholder:text-black/30
-                    focus:border-[#6E9CCE]
-                    focus:ring-2
-                    focus:ring-[#6E9CCE]/15
-                  "
-                  {...register("message")}
+              {errors.message?.message && (
+                <p className="text-xs text-red-600">
+                  {errors.message.message}
+                </p>
+              )}
+            </section>
+
+            {/* TERMS */}
+
+            <div className="rounded-xl bg-black/2.5 p-3.5">
+              <div className="flex items-start gap-3">
+                <input
+                  id="terms"
+                  type="checkbox"
+                  {...form.register("terms")}
+                  disabled={isSubmitting}
+                  className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-black/20 accent-[#6E9CCE]"
                 />
+
+                <label
+                  htmlFor="terms"
+                  className="cursor-pointer text-xs leading-5 text-black/50"
+                >
+                  I understand that this is an appointment request and not a confirmed booking.
+                </label>
               </div>
 
-              {errors.message && (
-                <ErrorMessage>
-                  {errors.message.message}
-                </ErrorMessage>
+              {errors.terms?.message && (
+                <p className="mt-1.5 text-xs text-red-600">
+                  {errors.terms.message}
+                </p>
               )}
             </div>
 
-            {/* Terms */}
+            {/* SUBMIT */}
 
-            <div className="rounded-xl border border-black/10 bg-black/[0.02] p-3.5">
-              <div className="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  id="terms"
-                  className="
-                    mt-0.5
-                    h-4
-                    w-4
-                    shrink-0
-                    cursor-pointer
-                    accent-[#6E9CCE]
-                    focus:ring-2
-                    focus:ring-[#6E9CCE]/30
-                  "
-                  {...register("terms")}
-                />
+            <Button
+              type="submit"
+              size="lg"
+              className="h-11 w-full rounded-full bg-black text-sm font-medium text-white hover:bg-[#173782]"
+              disabled={isSubmitting}
+            >
+              {isSubmitting
+                ? "Sending request..."
+                : "Request appointment"}
+            </Button>
 
-                <div>
-                  <Label
-                    htmlFor="terms"
-                    className="
-                      cursor-pointer
-                      text-xs
-                      font-normal
-                      leading-relaxed
-                      text-black/50
-                    "
-                  >
-                    I agree to the{" "}
-                    <a
-                      href="/privacy-policy"
-                      className="
-                        font-medium
-                        text-black
-                        underline
-                        underline-offset-2
-                        transition
-                        hover:text-[#6E9CCE]
-                      "
-                    >
-                      Privacy Policy
-                    </a>{" "}
-                    and consent to the processing of my
-                    personal data for scheduling my
-                    appointment.
-                    <span className="ml-1 text-red-500">
-                      *
-                    </span>
-                  </Label>
-
-                  {errors.terms && (
-                    <ErrorMessage>
-                      {errors.terms.message}
-                    </ErrorMessage>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Submit */}
-
-            <div>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="
-                  group
-                  h-13
-                  w-full
-                  rounded-full
-                  bg-black
-                  px-6
-                  text-sm
-                  font-medium
-                  text-white
-                  transition-all
-                  duration-300
-                  hover:bg-[#6E9CCE]
-                  focus-visible:ring-2
-                  focus-visible:ring-[#6E9CCE]
-                  focus-visible:ring-offset-2
-                  disabled:cursor-not-allowed
-                  disabled:opacity-60
-                "
-              >
-                {isSubmitting ? (
-                  <span className="flex items-center gap-3">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                    Submitting...
-                  </span>
-                ) : (
-                  <span className="flex items-center justify-center gap-3">
-                    Submit Appointment Request
-
-                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-black transition-transform duration-300 group-hover:translate-x-1">
-                      <ArrowUpRight className="h-3.5 w-3.5" />
-                    </span>
-                  </span>
-                )}
-              </Button>
-
-              <p className="mt-2 text-center text-[10px] text-black/30">
-                <span className="text-red-500">*</span>{" "}
-                Required fields · Confirmation within 24 hours
-              </p>
-            </div>
-
+            <p className="text-center text-[10px] leading-4 text-black/30">
+              This is a tentative appointment request. Our clinic will contact you by phone within 24 hours to confirm.
+            </p>
           </form>
         </div>
       </motion.div>
 
-      {/* Success Dialog */}
+      {/* SUCCESS DIALOG */}
 
       <Dialog
-        open={showSuccessDialog}
-        onOpenChange={handleCloseDialog}
+        open={showSuccess}
+        onOpenChange={setShowSuccess}
       >
-        <DialogContent className="max-w-md overflow-hidden rounded-[24px] border border-black/10 bg-white p-0 shadow-2xl">
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="items-center text-center">
+            <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-full bg-[#6E9CCE]/10">
+              <CheckCircle2 className="h-7 w-7 text-[#6E9CCE]" />
+            </div>
 
-          <div className="h-1 w-full bg-[#6E9CCE]" />
+            <DialogTitle className="text-xl">
+              Appointment request received
+            </DialogTitle>
 
-          <div className="p-6 sm:p-7">
+            <DialogDescription className="pt-2 leading-6">
+              Thank you. Your appointment request has been submitted successfully.
+            </DialogDescription>
+          </DialogHeader>
 
-            <DialogHeader>
-              <div className="mb-4 flex justify-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#6E9CCE]/10">
-                  <CheckCircle className="h-7 w-7 text-[#6E9CCE]" />
+          {submittedAppointment && (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-black/10 bg-black/2 p-4 text-sm">
+                <div className="space-y-3">
+                  {selectedDentistInfo && (
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="shrink-0 text-black/40">
+                        Dentist
+                      </span>
+
+                      <span className="text-right font-medium text-black">
+                        {selectedDentistInfo.label}
+                      </span>
+                    </div>
+                  )}
+
+                  {selectedServiceInfo && (
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="shrink-0 text-black/40">
+                        Treatment
+                      </span>
+
+                      <span className="text-right font-medium text-black">
+                        {selectedServiceInfo.label}
+                      </span>
+                    </div>
+                  )}
+
+                  {submittedDateValue && (
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="shrink-0 text-black/40">
+                        Date
+                      </span>
+
+                      <span className="text-right font-medium text-black">
+                        {format(submittedDateValue, "PPP")}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex items-start justify-between gap-4">
+                    <span className="shrink-0 text-black/40">
+                      Time
+                    </span>
+
+                    <span className="text-right font-medium text-black">
+                      {submittedAppointment.time}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              <DialogTitle className="text-center text-2xl font-light tracking-[-0.03em] text-black">
-                Appointment request sent
-              </DialogTitle>
+              <div className="rounded-2xl border border-[#6E9CCE]/20 bg-[#6E9CCE]/5 p-4">
+                <p className="text-sm font-medium leading-6 text-black">
+                  Your appointment is currently tentative.
+                </p>
 
-              <DialogDescription className="pt-2 text-center text-sm leading-relaxed text-black/45">
-                Thank you for choosing Dr. Babur &
-                Associates. We'll confirm your appointment
-                within 24 hours.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="mt-6 overflow-hidden rounded-xl border border-black/10">
-              <div className="border-b border-black/10 bg-black/[0.02] px-4 py-2.5">
-                <p className="text-[9px] font-medium uppercase tracking-[0.2em] text-black/35">
-                  Appointment Summary
+                <p className="mt-2 text-xs leading-5 text-black/55">
+                  The clinic will contact you by phone within 24 hours to confirm your appointment. Until you receive confirmation from the clinic, your appointment is not confirmed.
                 </p>
               </div>
-
-              <div className="divide-y divide-black/10">
-                <SummaryRow
-                  label="Name"
-                  value={formData?.name}
-                />
-
-                <SummaryRow
-                  label="Date"
-                  value={
-                    formData?.date
-                      ? format(
-                          parseISO(formData.date),
-                          "EEEE, MMMM d, yyyy"
-                        )
-                      : ""
-                  }
-                />
-
-                <SummaryRow
-                  label="Time"
-                  value={formData?.time}
-                />
-
-                <SummaryRow
-                  label="Dentist"
-                  value={
-                    formData?.dentist
-                      ? dentists.find(
-                          (d) =>
-                            d.value === formData.dentist
-                        )?.label
-                      : ""
-                  }
-                />
-
-                <SummaryRow
-                  label="Service"
-                  value={
-                    formData?.service
-                      ? services.find(
-                          (s) =>
-                            s.value === formData.service
-                        )?.label
-                      : ""
-                  }
-                />
-              </div>
             </div>
+          )}
 
-            <Button
-              onClick={handleCloseDialog}
-              className="
-                mt-5
-                h-12
-                w-full
-                rounded-full
-                bg-black
-                text-sm
-                font-medium
-                text-white
-                transition
-                hover:bg-[#6E9CCE]
-                focus-visible:ring-2
-                focus-visible:ring-[#6E9CCE]
-                focus-visible:ring-offset-2
-              "
-            >
-              Done
-            </Button>
-
-          </div>
+          <Button
+            type="button"
+            onClick={() => {
+              setShowSuccess(false);
+              setSubmittedAppointment(null);
+            }}
+            className="h-11 w-full rounded-full bg-black hover:bg-[#173782]"
+          >
+            Done
+          </Button>
         </DialogContent>
       </Dialog>
     </>
   );
-};
+}
 
-const ErrorMessage = ({
-  children,
-}: {
-  children?: React.ReactNode;
-}) => {
-  return (
-    <p
-      role="alert"
-      className="mt-1.5 flex items-center gap-1.5 text-[10px] text-red-500"
-    >
-      <AlertCircle className="h-3 w-3" />
-      {children}
-    </p>
-  );
-};
-
-const SummaryRow = ({
-  label,
-  value,
-}: {
-  label: string;
-  value?: string;
-}) => {
-  return (
-    <div className="flex items-start justify-between gap-5 px-4 py-2.5">
-      <span className="shrink-0 text-xs text-black/35">
-        {label}
-      </span>
-
-      <span className="text-right text-xs font-medium text-black">
-        {value}
-      </span>
-    </div>
-  );
-};
+export default AppointmentForm;
